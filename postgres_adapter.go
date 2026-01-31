@@ -1,0 +1,181 @@
+package db
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"time"
+
+	_ "github.com/lib/pq"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
+)
+
+// PostgreSQLAdapter PostgreSQL 数据库适配器
+type PostgreSQLAdapter struct {
+	config *Config
+	db     *gorm.DB
+	sqlDB  *sql.DB
+}
+
+// PostgreSQLFactory PostgreSQL 适配器工厂
+type PostgreSQLFactory struct{}
+
+// Name 返回适配器名称
+func (f *PostgreSQLFactory) Name() string {
+	return "postgres"
+}
+
+// Create 创建 PostgreSQL 适配器
+func (f *PostgreSQLFactory) Create(config *Config) (Adapter, error) {
+	adapter := &PostgreSQLAdapter{config: config}
+	if err := adapter.Connect(context.Background(), config); err != nil {
+		return nil, err
+	}
+	return adapter, nil
+}
+
+// Connect 连接到 PostgreSQL 数据库
+func (a *PostgreSQLAdapter) Connect(ctx context.Context, config *Config) error {
+	if config == nil {
+		config = a.config
+	}
+
+	if config.Host == "" {
+		config.Host = "localhost"
+	}
+	if config.Port == 0 {
+		config.Port = 5432
+	}
+	if config.SSLMode == "" {
+		config.SSLMode = "disable"
+	}
+
+	// 构建 DSN (Data Source Name)
+	dsn := fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		config.Host,
+		config.Port,
+		config.Username,
+		config.Password,
+		config.Database,
+		config.SSLMode,
+	)
+
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return fmt.Errorf("failed to connect to PostgreSQL: %w", err)
+	}
+
+	a.db = db
+
+	// 获取底层 sql.DB 对象
+	sqlDB, err := db.DB()
+	if err != nil {
+		return fmt.Errorf("failed to get sql.DB: %w", err)
+	}
+	a.sqlDB = sqlDB
+
+	// 配置连接池
+	if config.Pool != nil {
+		if config.Pool.MaxConnections > 0 {
+			sqlDB.SetMaxOpenConns(config.Pool.MaxConnections)
+		}
+		if config.Pool.IdleTimeout > 0 {
+			sqlDB.SetConnMaxIdleTime(time.Duration(config.Pool.IdleTimeout) * time.Second)
+		}
+	} else {
+		sqlDB.SetMaxOpenConns(25)
+		sqlDB.SetConnMaxIdleTime(5 * time.Minute)
+	}
+
+	return nil
+}
+
+// Close 关闭数据库连接
+func (a *PostgreSQLAdapter) Close() error {
+	if a.sqlDB != nil {
+		return a.sqlDB.Close()
+	}
+	return nil
+}
+
+// Ping 测试数据库连接
+func (a *PostgreSQLAdapter) Ping(ctx context.Context) error {
+	if a.sqlDB == nil {
+		return fmt.Errorf("database not connected")
+	}
+	return a.sqlDB.PingContext(ctx)
+}
+
+// Query 执行查询 (返回多行)
+func (a *PostgreSQLAdapter) Query(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	return a.sqlDB.QueryContext(ctx, query, args...)
+}
+
+// QueryRow 执行查询 (返回单行)
+func (a *PostgreSQLAdapter) QueryRow(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	return a.sqlDB.QueryRowContext(ctx, query, args...)
+}
+
+// Exec 执行操作 (INSERT/UPDATE/DELETE)
+func (a *PostgreSQLAdapter) Exec(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	return a.sqlDB.ExecContext(ctx, query, args...)
+}
+
+// Begin 开始事务
+func (a *PostgreSQLAdapter) Begin(ctx context.Context, opts ...interface{}) (Tx, error) {
+	txOpts := &sql.TxOptions{}
+	for _, opt := range opts {
+		if o, ok := opt.(*sql.TxOptions); ok {
+			txOpts = o
+		}
+	}
+
+	sqlTx, err := a.sqlDB.BeginTx(ctx, txOpts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	return &PostgreSQLTx{tx: sqlTx}, nil
+}
+
+// GetRawConn 获取底层连接 (返回 *gorm.DB)
+func (a *PostgreSQLAdapter) GetRawConn() interface{} {
+	return a.db
+}
+
+// PostgreSQLTx PostgreSQL 事务实现
+type PostgreSQLTx struct {
+	tx *sql.Tx
+}
+
+// Commit 提交事务
+func (t *PostgreSQLTx) Commit(ctx context.Context) error {
+	return t.tx.Commit()
+}
+
+// Rollback 回滚事务
+func (t *PostgreSQLTx) Rollback(ctx context.Context) error {
+	return t.tx.Rollback()
+}
+
+// Exec 在事务中执行
+func (t *PostgreSQLTx) Exec(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	return t.tx.ExecContext(ctx, query, args...)
+}
+
+// Query 在事务中查询
+func (t *PostgreSQLTx) Query(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	return t.tx.QueryContext(ctx, query, args...)
+}
+
+// QueryRow 在事务中查询单行
+func (t *PostgreSQLTx) QueryRow(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	return t.tx.QueryRowContext(ctx, query, args...)
+}
+
+// init 自动注册 PostgreSQL 适配器
+func init() {
+	RegisterAdapter(&PostgreSQLFactory{})
+}
