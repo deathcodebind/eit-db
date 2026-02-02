@@ -314,12 +314,12 @@ func TestErrorMessages(t *testing.T) {
 		{
 			name: "Missing PostgreSQL database",
 			config: &Config{
-				Adapter:   "postgres",
-				Host:      "localhost",
-				Port:      5432,
-				Username:  "postgres",
-				Password:  "postgres",
-				SSLMode:   "disable",
+				Adapter:  "postgres",
+				Host:     "localhost",
+				Port:     5432,
+				Username: "postgres",
+				Password: "postgres",
+				SSLMode:  "disable",
 			},
 			expErr: "database name is required",
 		},

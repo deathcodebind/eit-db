@@ -39,7 +39,7 @@ type Adapter interface {
 type Tx interface {
 	Commit(ctx context.Context) error
 	Rollback(ctx context.Context) error
-	
+
 	// 事务中的查询和执行
 	Query(ctx context.Context, sql string, args ...interface{}) (*sql.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...interface{}) *sql.Row
@@ -136,7 +136,7 @@ func NewRepository(config *Config) (*Repository, error) {
 func (r *Repository) Connect(ctx context.Context) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	if r.adapter == nil {
 		return fmt.Errorf("adapter is not initialized")
 	}
@@ -147,7 +147,7 @@ func (r *Repository) Connect(ctx context.Context) error {
 func (r *Repository) Close() error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	
+
 	if r.adapter == nil {
 		return nil
 	}
@@ -158,7 +158,7 @@ func (r *Repository) Close() error {
 func (r *Repository) Ping(ctx context.Context) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	if r.adapter == nil {
 		return fmt.Errorf("adapter is not initialized")
 	}
@@ -169,7 +169,7 @@ func (r *Repository) Ping(ctx context.Context) error {
 func (r *Repository) Query(ctx context.Context, sql string, args ...interface{}) (*sql.Rows, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	if r.adapter == nil {
 		return nil, fmt.Errorf("adapter is not initialized")
 	}
@@ -180,7 +180,7 @@ func (r *Repository) Query(ctx context.Context, sql string, args ...interface{})
 func (r *Repository) QueryRow(ctx context.Context, sql string, args ...interface{}) *sql.Row {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	if r.adapter == nil {
 		return nil
 	}
@@ -191,7 +191,7 @@ func (r *Repository) QueryRow(ctx context.Context, sql string, args ...interface
 func (r *Repository) Exec(ctx context.Context, sql string, args ...interface{}) (sql.Result, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	if r.adapter == nil {
 		return nil, fmt.Errorf("adapter is not initialized")
 	}
@@ -202,7 +202,7 @@ func (r *Repository) Exec(ctx context.Context, sql string, args ...interface{}) 
 func (r *Repository) Begin(ctx context.Context, opts ...interface{}) (Tx, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	
+
 	if r.adapter == nil {
 		return nil, fmt.Errorf("adapter is not initialized")
 	}

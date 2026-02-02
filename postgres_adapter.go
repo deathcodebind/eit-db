@@ -89,7 +89,7 @@ func (a *PostgreSQLAdapter) Connect(ctx context.Context, config *Config) error {
 
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
-		return fmt.Errorf("failed to connect to PostgreSQL (host=%s, port=%d, user=%s, db=%s, ssl=%s): %w", 
+		return fmt.Errorf("failed to connect to PostgreSQL (host=%s, port=%d, user=%s, db=%s, ssl=%s): %w",
 			config.Host, config.Port, config.Username, config.Database, config.SSLMode, err)
 	}
 

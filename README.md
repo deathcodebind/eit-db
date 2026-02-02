@@ -10,6 +10,7 @@
 - **查询构建器** - 类型安全的查询接口
 - **迁移系统** - 自动从 Schema 生成数据库迁移
 - **GORM 集成** - 完全兼容 GORM v1/v2，可无缝协作
+- **动态建表** - 支持运行时动态创建表，PostgreSQL 用触发器，MySQL/SQLite 用 GORM Hook
 
 ## 📦 安装
 
@@ -120,6 +121,7 @@ gormDB.Create(&User{Email: "test@example.com"})
 - [快速参考和常见问题](.dev-docs/QUICK_REFERENCE.md)
 - [v0.1.4 版本修复说明和完整使用指南](.dev-docs/FIXES_AND_TESTS.md)  
 - [版本发布说明](.dev-docs/SUMMARY.md)
+- [动态建表功能详解](DYNAMIC_TABLE.md) - SaaS 多租户、分表分库等场景
 
 ## ❓ 常见问题
 

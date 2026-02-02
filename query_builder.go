@@ -9,17 +9,17 @@ import (
 
 // QueryBuilder 查询构建器 (使用 Changeset 进行数据操作)
 type QueryBuilder struct {
-	schema   Schema
-	repo     *Repository
-	context  context.Context
+	schema  Schema
+	repo    *Repository
+	context context.Context
 }
 
 // NewQueryBuilder 创建查询构建器
 func NewQueryBuilder(schema Schema, repo *Repository) *QueryBuilder {
 	return &QueryBuilder{
-		schema:   schema,
-		repo:     repo,
-		context:  context.Background(),
+		schema:  schema,
+		repo:    repo,
+		context: context.Background(),
 	}
 }
 
@@ -111,12 +111,12 @@ func (qb *QueryBuilder) UpdateByID(id interface{}, cs *Changeset) (sql.Result, e
 // Delete 删除数据
 func (qb *QueryBuilder) Delete(whereClause string, whereArgs ...interface{}) (sql.Result, error) {
 	sql := fmt.Sprintf("DELETE FROM %s", qb.schema.TableName())
-	
+
 	if whereClause != "" {
 		sql += " WHERE " + whereClause
 		return qb.repo.Exec(qb.context, sql, whereArgs...)
 	}
-	
+
 	return qb.repo.Exec(qb.context, sql)
 }
 
@@ -209,9 +209,9 @@ func (qb *QueryBuilder) Transaction(fn func(*QueryBuilder) error) error {
 
 	// 创建事务内的查询构建器
 	txQB := &QueryBuilder{
-		schema:   qb.schema,
-		repo:     &Repository{adapter: &txAdapter{tx: tx}},
-		context:  qb.context,
+		schema:  qb.schema,
+		repo:    &Repository{adapter: &txAdapter{tx: tx}},
+		context: qb.context,
 	}
 
 	if err := fn(txQB); err != nil {
@@ -316,51 +316,51 @@ func (qc *QueryChain) OrderBy(orderBy string) *QueryChain {
 // First 查询第一条
 func (qc *QueryChain) First() (*sql.Row, error) {
 	sql := fmt.Sprintf("SELECT * FROM %s", qc.builder.schema.TableName())
-	
+
 	if qc.whereSQL != "" {
 		sql += " WHERE " + qc.whereSQL
 	}
-	
+
 	if qc.orderBy != "" {
 		sql += " ORDER BY " + qc.orderBy
 	}
-	
+
 	sql += " LIMIT 1"
-	
+
 	return qc.builder.repo.QueryRow(qc.builder.context, sql, qc.whereArgs...), nil
 }
 
 // All 查询所有
 func (qc *QueryChain) All() (*sql.Rows, error) {
 	sql := fmt.Sprintf("SELECT * FROM %s", qc.builder.schema.TableName())
-	
+
 	if qc.whereSQL != "" {
 		sql += " WHERE " + qc.whereSQL
 	}
-	
+
 	if qc.orderBy != "" {
 		sql += " ORDER BY " + qc.orderBy
 	}
-	
+
 	if qc.limit > 0 {
 		sql += fmt.Sprintf(" LIMIT %d", qc.limit)
 	}
-	
+
 	if qc.offset > 0 {
 		sql += fmt.Sprintf(" OFFSET %d", qc.offset)
 	}
-	
+
 	return qc.builder.repo.Query(qc.builder.context, sql, qc.whereArgs...)
 }
 
 // Count 统计数量
 func (qc *QueryChain) Count() (int64, error) {
 	sql := fmt.Sprintf("SELECT COUNT(*) FROM %s", qc.builder.schema.TableName())
-	
+
 	if qc.whereSQL != "" {
 		sql += " WHERE " + qc.whereSQL
 	}
-	
+
 	row := qc.builder.repo.QueryRow(qc.builder.context, sql, qc.whereArgs...)
 	var count int64
 	err := row.Scan(&count)
