@@ -14,7 +14,7 @@
 ## 📦 安装
 
 ```bash
-go get pathologyenigma/eit-db
+go get github.com/eit-cms/eit-db
 ```
 
 ## 🚀 快速开始
@@ -38,7 +38,7 @@ database:
 ```go
 package main
 
-import "pathologyenigma/eit-db"
+import "github.com/eit-cms/eit-db"
 
 func main() {
     config := &eit_db.Config{

@@ -1,4 +1,4 @@
-module pathologyenigma/eit-db
+module github.com/eit-cms/eit-db
 
 go 1.23
 
