@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"regexp"
 	"sync"
 )
 
@@ -300,4 +301,236 @@ func (cs *Changeset) ErrorString() string {
 // ToMap 转换为 map（用于数据库操作）
 func (cs *Changeset) ToMap() map[string]interface{} {
 	return cs.Changes()
+}
+
+// ValidateRequired 验证必填字段
+func (cs *Changeset) ValidateRequired(fields []string) *Changeset {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
+	for _, fieldName := range fields {
+		value, exists := cs.data[fieldName]
+		if !exists || value == nil || value == "" {
+			cs.addError(fieldName, fmt.Sprintf("%s is required", fieldName))
+			cs.valid = false
+		}
+	}
+
+	return cs
+}
+
+// ValidateLength 验证字符串长度
+func (cs *Changeset) ValidateLength(fieldName string, min, max int) *Changeset {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
+	value, exists := cs.data[fieldName]
+	if !exists || value == nil {
+		return cs
+	}
+
+	str, ok := value.(string)
+	if !ok {
+		cs.addError(fieldName, fmt.Sprintf("%s must be a string", fieldName))
+		cs.valid = false
+		return cs
+	}
+
+	length := len(str)
+	if min > 0 && length < min {
+		cs.addError(fieldName, fmt.Sprintf("%s is too short (minimum is %d characters)", fieldName, min))
+		cs.valid = false
+	}
+	if max > 0 && length > max {
+		cs.addError(fieldName, fmt.Sprintf("%s is too long (maximum is %d characters)", fieldName, max))
+		cs.valid = false
+	}
+
+	return cs
+}
+
+// ValidateFormat 验证字段格式（使用正则表达式）
+func (cs *Changeset) ValidateFormat(fieldName string, pattern string, message ...string) *Changeset {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
+	value, exists := cs.data[fieldName]
+	if !exists || value == nil {
+		return cs
+	}
+
+	str, ok := value.(string)
+	if !ok {
+		cs.addError(fieldName, fmt.Sprintf("%s must be a string", fieldName))
+		cs.valid = false
+		return cs
+	}
+
+	// 使用 regexp 验证
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		cs.addError(fieldName, fmt.Sprintf("invalid pattern: %v", err))
+		cs.valid = false
+		return cs
+	}
+
+	if !re.MatchString(str) {
+		errMsg := fmt.Sprintf("%s has invalid format", fieldName)
+		if len(message) > 0 {
+			errMsg = message[0]
+		}
+		cs.addError(fieldName, errMsg)
+		cs.valid = false
+	}
+
+	return cs
+}
+
+// ValidateInclusion 验证字段值在指定列表中
+func (cs *Changeset) ValidateInclusion(fieldName string, list []interface{}) *Changeset {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
+	value, exists := cs.data[fieldName]
+	if !exists || value == nil {
+		return cs
+	}
+
+	found := false
+	for _, item := range list {
+		if value == item {
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		cs.addError(fieldName, fmt.Sprintf("%s is not included in the list", fieldName))
+		cs.valid = false
+	}
+
+	return cs
+}
+
+// ValidateExclusion 验证字段值不在指定列表中
+func (cs *Changeset) ValidateExclusion(fieldName string, list []interface{}) *Changeset {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
+	value, exists := cs.data[fieldName]
+	if !exists || value == nil {
+		return cs
+	}
+
+	for _, item := range list {
+		if value == item {
+			cs.addError(fieldName, fmt.Sprintf("%s is reserved", fieldName))
+			cs.valid = false
+			break
+		}
+	}
+
+	return cs
+}
+
+// ValidateNumber 验证数字范围
+func (cs *Changeset) ValidateNumber(fieldName string, opts map[string]interface{}) *Changeset {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
+	value, exists := cs.data[fieldName]
+	if !exists || value == nil {
+		return cs
+	}
+
+	// 转换为 float64 进行比较
+	var num float64
+	switch v := value.(type) {
+	case int:
+		num = float64(v)
+	case int64:
+		num = float64(v)
+	case float32:
+		num = float64(v)
+	case float64:
+		num = v
+	default:
+		cs.addError(fieldName, fmt.Sprintf("%s must be a number", fieldName))
+		cs.valid = false
+		return cs
+	}
+
+	if minVal, ok := opts["greater_than"].(float64); ok {
+		if num <= minVal {
+			cs.addError(fieldName, fmt.Sprintf("%s must be greater than %v", fieldName, minVal))
+			cs.valid = false
+		}
+	}
+
+	if minVal, ok := opts["greater_than_or_equal_to"].(float64); ok {
+		if num < minVal {
+			cs.addError(fieldName, fmt.Sprintf("%s must be greater than or equal to %v", fieldName, minVal))
+			cs.valid = false
+		}
+	}
+
+	if maxVal, ok := opts["less_than"].(float64); ok {
+		if num >= maxVal {
+			cs.addError(fieldName, fmt.Sprintf("%s must be less than %v", fieldName, maxVal))
+			cs.valid = false
+		}
+	}
+
+	if maxVal, ok := opts["less_than_or_equal_to"].(float64); ok {
+		if num > maxVal {
+			cs.addError(fieldName, fmt.Sprintf("%s must be less than or equal to %v", fieldName, maxVal))
+			cs.valid = false
+		}
+	}
+
+	if equalTo, ok := opts["equal_to"].(float64); ok {
+		if num != equalTo {
+			cs.addError(fieldName, fmt.Sprintf("%s must be equal to %v", fieldName, equalTo))
+			cs.valid = false
+		}
+	}
+
+	return cs
+}
+
+// GetChange 获取变更的字段值（便捷方法）
+func (cs *Changeset) GetChange(fieldName string) interface{} {
+	cs.mu.RLock()
+	defer cs.mu.RUnlock()
+	return cs.changes[fieldName]
+}
+
+// Action 表示 Changeset 的操作类型
+type Action string
+
+const (
+	ActionInsert Action = "insert"
+	ActionUpdate Action = "update"
+	ActionDelete Action = "delete"
+)
+
+// action 存储当前操作类型
+func (cs *Changeset) action() Action {
+	// 如果有主键且非新记录，则为更新
+	// 这里简化处理，实际应该检查主键
+	if len(cs.previousValues) > 0 {
+		return ActionUpdate
+	}
+	return ActionInsert
+}
+
+// ApplyAction 根据操作类型应用不同的验证逻辑
+func (cs *Changeset) ApplyAction(action Action) *Changeset {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+
+	// 可以根据不同的 action 应用不同的验证逻辑
+	// 例如：insert 时验证所有必填字段，update 时只验证变更的字段
+
+	return cs
 }

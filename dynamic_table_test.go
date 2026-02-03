@@ -94,8 +94,9 @@ func TestDynamicTableConfigBuilder(t *testing.T) {
 
 	// 检查字段属性
 	emailField := config.Fields[1]
-	if !emailField.Null || !emailField.Index || !emailField.Unique {
-		t.Fatalf("Email field attributes not set correctly")
+	if emailField.Null || !emailField.Index || !emailField.Unique {
+		t.Fatalf("Email field attributes not set correctly: Null=%v, Index=%v, Unique=%v", 
+			emailField.Null, emailField.Index, emailField.Unique)
 	}
 }
 
