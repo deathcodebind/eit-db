@@ -273,6 +273,10 @@ func (ta *txAdapter) ListScheduledTasks(ctx context.Context) ([]*ScheduledTaskSt
 	return nil, fmt.Errorf("cannot list scheduled tasks within a transaction")
 }
 
+func (ta *txAdapter) GetQueryBuilderProvider() QueryConstructorProvider {
+	return NewDefaultSQLQueryConstructorProvider(NewMySQLDialect())
+}
+
 // ==================== 链式操作辅助类 ====================
 
 // QueryChain 链式查询构建器

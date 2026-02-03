@@ -1,6 +1,7 @@
 package db
 
 import (
+	"context"
 	"reflect"
 	"time"
 )
@@ -397,4 +398,213 @@ func (r *SchemaRegistry) GetAllSchemaNames() []string {
 // Timestamp 获取当前时间（用于 created_at/updated_at 字段）
 func Timestamp() time.Time {
 	return time.Now()
+}
+
+// ==================== Query Builder (v0.4.1) ====================
+
+// QueryConstructor 查询构造器接口 - 顶层 API
+// 用户通过此接口构建查询，具体实现由适配器提供
+type QueryConstructor interface {
+	// 条件查询
+	Where(condition Condition) QueryConstructor
+	
+	// 多条件 AND 组合
+	WhereAll(conditions ...Condition) QueryConstructor
+	
+	// 多条件 OR 组合
+	WhereAny(conditions ...Condition) QueryConstructor
+	
+	// 字段选择
+	Select(fields ...string) QueryConstructor
+	
+	// 排序
+	OrderBy(field string, direction string) QueryConstructor // direction: "ASC" | "DESC"
+	
+	// 分页
+	Limit(count int) QueryConstructor
+	Offset(count int) QueryConstructor
+	
+	// 构建查询
+	Build(ctx context.Context) (string, []interface{}, error)
+	
+	// 获取底层查询构造器（用于 Adapter 特定优化）
+	GetNativeBuilder() interface{}
+}
+
+// Condition 条件接口 - 中层转义
+// Adapter 实现此接口将条件转换为数据库特定的形式
+type Condition interface {
+	// 获取条件类型
+	Type() string
+	
+	// 将条件转换为 SQL/Cypher/etc
+	Translate(translator ConditionTranslator) (string, []interface{}, error)
+}
+
+// ConditionTranslator 条件转义器接口
+// 由每个 Adapter 的 QueryConstructor 实现
+type ConditionTranslator interface {
+	TranslateCondition(condition Condition) (string, []interface{}, error)
+	TranslateComposite(operator string, conditions []Condition) (string, []interface{}, error)
+}
+
+// ==================== 内置 Condition 实现 ====================
+
+// SimpleCondition 简单条件（字段 操作符 值）
+type SimpleCondition struct {
+	Field    string
+	Operator string // "eq", "ne", "gt", "lt", "gte", "lte", "in", "like", "between"
+	Value    interface{}
+}
+
+func (c *SimpleCondition) Type() string {
+	return "simple"
+}
+
+func (c *SimpleCondition) Translate(translator ConditionTranslator) (string, []interface{}, error) {
+	return translator.TranslateCondition(c)
+}
+
+// CompositeCondition 复合条件（AND/OR）
+type CompositeCondition struct {
+	Operator   string        // "and" | "or"
+	Conditions []Condition
+}
+
+func (c *CompositeCondition) Type() string {
+	return "composite"
+}
+
+func (c *CompositeCondition) Translate(translator ConditionTranslator) (string, []interface{}, error) {
+	return translator.TranslateComposite(c.Operator, c.Conditions)
+}
+
+// NotCondition 非条件
+type NotCondition struct {
+	Condition Condition
+}
+
+func (c *NotCondition) Type() string {
+	return "not"
+}
+
+func (c *NotCondition) Translate(translator ConditionTranslator) (string, []interface{}, error) {
+	innerSQL, args, err := c.Condition.Translate(translator)
+	if err != nil {
+		return "", nil, err
+	}
+	return "NOT (" + innerSQL + ")", args, nil
+}
+
+// ==================== Condition Builder (Fluent API) ====================
+
+// ConditionBuilder 条件构造器 - 流式 API
+type ConditionBuilder struct {
+	field    string
+	operator string
+	value    interface{}
+}
+
+// Eq 等于条件
+func Eq(field string, value interface{}) Condition {
+	return &SimpleCondition{
+		Field:    field,
+		Operator: "eq",
+		Value:    value,
+	}
+}
+
+// Ne 不等于条件
+func Ne(field string, value interface{}) Condition {
+	return &SimpleCondition{
+		Field:    field,
+		Operator: "ne",
+		Value:    value,
+	}
+}
+
+// Gt 大于条件
+func Gt(field string, value interface{}) Condition {
+	return &SimpleCondition{
+		Field:    field,
+		Operator: "gt",
+		Value:    value,
+	}
+}
+
+// Lt 小于条件
+func Lt(field string, value interface{}) Condition {
+	return &SimpleCondition{
+		Field:    field,
+		Operator: "lt",
+		Value:    value,
+	}
+}
+
+// Gte 大于等于条件
+func Gte(field string, value interface{}) Condition {
+	return &SimpleCondition{
+		Field:    field,
+		Operator: "gte",
+		Value:    value,
+	}
+}
+
+// Lte 小于等于条件
+func Lte(field string, value interface{}) Condition {
+	return &SimpleCondition{
+		Field:    field,
+		Operator: "lte",
+		Value:    value,
+	}
+}
+
+// In IN 条件
+func In(field string, values ...interface{}) Condition {
+	return &SimpleCondition{
+		Field:    field,
+		Operator: "in",
+		Value:    values,
+	}
+}
+
+// Between BETWEEN 条件
+func Between(field string, min, max interface{}) Condition {
+	return &SimpleCondition{
+		Field:    field,
+		Operator: "between",
+		Value:    []interface{}{min, max},
+	}
+}
+
+// Like LIKE 条件（模糊匹配）
+func Like(field string, pattern string) Condition {
+	return &SimpleCondition{
+		Field:    field,
+		Operator: "like",
+		Value:    pattern,
+	}
+}
+
+// And AND 条件
+func And(conditions ...Condition) Condition {
+	return &CompositeCondition{
+		Operator:   "and",
+		Conditions: conditions,
+	}
+}
+
+// Or OR 条件
+func Or(conditions ...Condition) Condition {
+	return &CompositeCondition{
+		Operator:   "or",
+		Conditions: conditions,
+	}
+}
+
+// Not NOT 条件
+func Not(condition Condition) Condition {
+	return &NotCondition{
+		Condition: condition,
+	}
 }

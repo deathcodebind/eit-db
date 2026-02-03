@@ -33,6 +33,10 @@ type Adapter interface {
 	RegisterScheduledTask(ctx context.Context, task *ScheduledTaskConfig) error
 	UnregisterScheduledTask(ctx context.Context, taskName string) error
 	ListScheduledTasks(ctx context.Context) ([]*ScheduledTaskStatus, error)
+
+	// QueryBuilder 提供者接口 (v0.4.1) - 中层转义层
+	// Adapter 通过此接口提供特定数据库的 QueryConstructor 实现
+	GetQueryBuilderProvider() QueryConstructorProvider
 }
 
 // Tx 定义事务接口
@@ -262,4 +266,81 @@ func (r *Repository) ListScheduledTasks(ctx context.Context) ([]*ScheduledTaskSt
 	}
 
 	return r.adapter.ListScheduledTasks(ctx)
+}
+
+// ==================== Query Builder Provider (v0.4.1) ====================
+
+// QueryConstructorProvider 查询构造器提供者接口 - 中层转义层
+// 每个 Adapter 实现此接口，提供数据库特定的 QueryConstructor
+type QueryConstructorProvider interface {
+	// 创建新的查询构造器
+	NewQueryConstructor(schema Schema) QueryConstructor
+	
+	// 获取此 Adapter 的查询能力声明
+	GetCapabilities() *QueryBuilderCapabilities
+}
+
+// QueryBuilderCapabilities 查询构造器能力声明
+// 声明此 Adapter 的 QueryBuilder 支持哪些操作和优化
+type QueryBuilderCapabilities struct {
+	// 支持的条件操作
+	SupportsEq       bool
+	SupportsNe       bool
+	SupportsGt       bool
+	SupportsLt       bool
+	SupportsGte      bool
+	SupportsLte      bool
+	SupportsIn       bool
+	SupportsBetween  bool
+	SupportsLike     bool
+	SupportsAnd      bool
+	SupportsOr       bool
+	SupportsNot      bool
+	
+	// 支持的查询特性
+	SupportsSelect   bool // 字段选择
+	SupportsOrderBy  bool // 排序
+	SupportsLimit    bool // LIMIT
+	SupportsOffset   bool // OFFSET
+	SupportsJoin     bool // JOIN（关系查询）
+	SupportsSubquery bool // 子查询
+	
+	// 优化特性
+	SupportsQueryPlan bool // 查询计划分析
+	SupportsIndex     bool // 索引提示
+	
+	// 原生查询支持
+	SupportsNativeQuery bool // 是否支持原生查询（如 Cypher）
+	NativeQueryLang     string // 原生查询语言名称（如 "cypher"）
+	
+	// 其他标记
+	Description string // 此 Adapter 的简要描述
+}
+
+// DefaultQueryBuilderCapabilities 返回默认的查询能力（SQL 兼容）
+func DefaultQueryBuilderCapabilities() *QueryBuilderCapabilities {
+	return &QueryBuilderCapabilities{
+		SupportsEq:       true,
+		SupportsNe:       true,
+		SupportsGt:       true,
+		SupportsLt:       true,
+		SupportsGte:      true,
+		SupportsLte:      true,
+		SupportsIn:       true,
+		SupportsBetween:  true,
+		SupportsLike:     true,
+		SupportsAnd:      true,
+		SupportsOr:       true,
+		SupportsNot:      true,
+		SupportsSelect:   true,
+		SupportsOrderBy:  true,
+		SupportsLimit:    true,
+		SupportsOffset:   true,
+		SupportsJoin:     true,
+		SupportsSubquery: true,
+		SupportsQueryPlan: true,
+		SupportsIndex:    true,
+		SupportsNativeQuery: false,
+		Description:      "Default SQL Query Builder",
+	}
 }

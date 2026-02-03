@@ -6,6 +6,7 @@
 
 - **Schema 系统** - 声明式数据结构定义，支持验证器和默认值
 - **Changeset 验证** - 数据变更追踪和验证，类似 Ecto.Changeset，支持丰富的验证规则
+- **Query Constructor** - 三层查询构造架构，支持 MySQL/PostgreSQL/SQLite 方言 (v0.4.1+)
 - **Migration 工具** - 灵活的数据库迁移工具，支持 Schema-based 和 Raw SQL 两种方式
 - **跨数据库适配器** - 支持 MySQL, PostgreSQL, SQLite
 - **查询构建器** - 类型安全的查询接口
@@ -327,6 +328,29 @@ go test -bench=BenchmarkGetGormDB -benchmem
 
 ## 📊 版本更新
 
+### v0.4.1 - 查询构造器三层架构 (2026-02-03)
+
+**核心改进**：建立查询构造器的三层分离架构，为 v0.5.0+ 多 Adapter 支持打基础
+
+**顶层 - 用户 API 层**
+- ✅ `QueryConstructor` 接口：用户通过此接口构建查询
+- ✅ 流式 API：`Where()`, `WhereAll()`, `WhereAny()`, `Select()`, `OrderBy()`, `Limit()`, `Offset()`
+- ✅ 灵活的条件构造器：`Eq()`, `Ne()`, `Gt()`, `Lt()`, `Gte()`, `Lte()`, `In()`, `Between()`, `Like()`
+- ✅ 复合条件：`And()`, `Or()`, `Not()`
+
+**中层 - Adapter 转义层**
+- ✅ `QueryConstructorProvider` 接口：每个 Adapter 通过此接口提供数据库特定的实现
+- ✅ `QueryBuilderCapabilities` 结构体：声明 Adapter 支持的操作和优化特性
+- ✅ 方言无关的 API 设计
+
+**底层 - 数据库执行层**
+- ✅ `SQLQueryConstructor` 实现：标准 SQL 生成
+- ✅ `SQLDialect` 接口：支持不同的 SQL 方言
+- ✅ 方言实现：`MySQLDialect`, `PostgreSQLDialect`, `SQLiteDialect`
+- ✅ 参数化查询：防止 SQL 注入，自动转换为 `?` 或 `$1` 等占位符
+
+**测试覆盖**：20+ 单元测试，验证每个条件、操作符和组合的 SQL 生成正确性  
+
 ### v0.4.0 - Migration 工具 (2026-02-03)
 
 ✅ 全新的数据库迁移工具  
@@ -369,5 +393,5 @@ MIT License
 ---
 
 **最后更新**：2026-02-03  
-**当前版本**：v0.4.0  
-**下一版本**：v1.0.0 (计划 2026-05)
+**当前版本**：v0.4.1  
+**下一版本**：v0.4.2 (关系查询支持)

@@ -214,6 +214,11 @@ func (t *MySQLTx) QueryRow(ctx context.Context, query string, args ...interface{
 	return t.tx.QueryRowContext(ctx, query, args...)
 }
 
+// GetQueryBuilderProvider 返回查询构造器提供者
+func (a *MySQLAdapter) GetQueryBuilderProvider() QueryConstructorProvider {
+	return NewDefaultSQLQueryConstructorProvider(NewMySQLDialect())
+}
+
 // init 自动注册 MySQL 适配器
 func init() {
 	RegisterAdapter(&MySQLFactory{})

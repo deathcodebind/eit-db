@@ -181,6 +181,11 @@ func (t *SQLiteTx) QueryRow(ctx context.Context, query string, args ...interface
 	return t.tx.QueryRowContext(ctx, query, args...)
 }
 
+// GetQueryBuilderProvider 返回查询构造器提供者
+func (a *SQLiteAdapter) GetQueryBuilderProvider() QueryConstructorProvider {
+	return NewDefaultSQLQueryConstructorProvider(NewSQLiteDialect())
+}
+
 // init 自动注册 SQLite 适配器
 func init() {
 	RegisterAdapter(&SQLiteFactory{})

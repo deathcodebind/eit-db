@@ -326,6 +326,11 @@ func (t *PostgreSQLTx) QueryRow(ctx context.Context, query string, args ...inter
 	return t.tx.QueryRowContext(ctx, query, args...)
 }
 
+// GetQueryBuilderProvider 返回查询构造器提供者
+func (a *PostgreSQLAdapter) GetQueryBuilderProvider() QueryConstructorProvider {
+	return NewDefaultSQLQueryConstructorProvider(NewPostgreSQLDialect())
+}
+
 // init 自动注册 PostgreSQL 适配器
 func init() {
 	RegisterAdapter(&PostgreSQLFactory{})

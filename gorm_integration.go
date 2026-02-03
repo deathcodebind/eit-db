@@ -108,6 +108,10 @@ func (a *gormAdapter) ListScheduledTasks(ctx context.Context) ([]*ScheduledTaskS
 	return nil, fmt.Errorf("gormAdapter: scheduled tasks not supported")
 }
 
+func (a *gormAdapter) GetQueryBuilderProvider() QueryConstructorProvider {
+	return NewDefaultSQLQueryConstructorProvider(NewMySQLDialect())
+}
+
 // gormTx 实现 Tx 接口
 type gormTx struct {
 	tx *gorm.DB
