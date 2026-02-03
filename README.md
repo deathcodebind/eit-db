@@ -5,12 +5,13 @@
 ## ✨ 特性
 
 - **Schema 系统** - 声明式数据结构定义，支持验证器和默认值
-- **Changeset** - 数据变更追踪和验证，类似 Ecto.Changeset  
+- **Changeset 验证** - 数据变更追踪和验证，类似 Ecto.Changeset，支持丰富的验证规则
+- **Migration 工具** - 灵活的数据库迁移工具，支持 Schema-based 和 Raw SQL 两种方式
 - **跨数据库适配器** - 支持 MySQL, PostgreSQL, SQLite
 - **查询构建器** - 类型安全的查询接口
-- **迁移系统** - 自动从 Schema 生成数据库迁移
 - **GORM 集成** - 完全兼容 GORM v1/v2，可无缝协作
 - **动态建表** - 支持运行时动态创建表，PostgreSQL 用触发器，MySQL/SQLite 用 GORM Hook
+- **定时任务** - 跨数据库的定时任务支持
 
 ## 📦 安装
 
@@ -108,6 +109,132 @@ gormDB.Find(&users)
 gormDB.Create(&User{Email: "test@example.com"})
 ```
 
+### 4. 使用 Changeset 进行数据验证 (v0.3.1+)
+
+```go
+// 创建 Changeset
+cs := db.NewChangeset(userSchema)
+cs.Cast(map[string]interface{}{
+    "name":  "Alice",
+    "email": "alice@example.com",
+    "age":   25,
+})
+
+// 链式验证
+cs.ValidateRequired([]string{"name", "email"}).
+   ValidateLength("name", 2, 50).
+   ValidateFormat("email", `^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`).
+   ValidateNumber("age", map[string]interface{}{"greater_than_or_equal_to": 18.0})
+
+// 检查验证结果
+if cs.IsValid() {
+    // 数据有效，可以保存
+    data := cs.GetChanges()
+} else {
+    // 显示错误
+    for field, errors := range cs.Errors() {
+        fmt.Printf("%s: %v\n", field, errors)
+    }
+}
+```
+
+**可用的验证方法：**
+- `ValidateRequired(fields)` - 验证必填字段
+- `ValidateLength(field, min, max)` - 验证字符串长度
+- `ValidateFormat(field, pattern)` - 正则表达式验证
+- `ValidateInclusion(field, list)` - 白名单验证
+- `ValidateExclusion(field, list)` - 黑名单验证
+- `ValidateNumber(field, opts)` - 数字范围验证
+
+### 5. 数据库迁移工具 (v0.5.0+)
+
+EIT-DB 提供了强大的迁移工具，支持两种迁移方式：
+
+**初始化迁移项目：**
+```bash
+# 安装工具
+go install github.com/eit-cms/eit-db/cmd/eit-migrate@latest
+
+# 或直接构建
+cd /path/to/eit-db
+go build -o ~/bin/eit-migrate ./cmd/eit-migrate
+
+# 初始化迁移项目
+eit-migrate init
+```
+
+**生成迁移文件：**
+```bash
+# 生成 Schema-based 迁移（类型安全）
+eit-migrate generate create_users_table
+
+# 生成 Raw SQL 迁移（完全控制）
+eit-migrate generate add_indexes --type sql
+```
+
+**运行迁移：**
+```bash
+cd migrations
+cp .env.example .env
+# 编辑 .env 配置数据库连接
+
+# 运行迁移
+go run . up
+
+# 查看状态
+go run . status
+
+# 回滚最后一个迁移
+go run . down
+```
+
+**Schema-based Migration 示例：**
+```go
+func NewMigration_20260203150405_CreateUsersTable() db.MigrationInterface {
+    migration := db.NewSchemaMigration("20260203150405", "create_users_table")
+
+    userSchema := db.NewBaseSchema("users")
+    userSchema.AddField(&db.Field{
+        Name:    "id",
+        Type:    db.TypeInteger,
+        Primary: true,
+        Autoinc: true,
+    })
+    userSchema.AddField(&db.Field{
+        Name: "email",
+        Type: db.TypeString,
+        Null: false,
+        Unique: true,
+    })
+
+    migration.CreateTable(userSchema)
+    return migration
+}
+```
+
+**Raw SQL Migration 示例：**
+```go
+func NewMigration_20260203160000_AddIndexes() db.MigrationInterface {
+    migration := db.NewRawSQLMigration("20260203160000", "add_indexes")
+
+    migration.AddUpSQL(`
+        CREATE INDEX idx_users_email ON users(email);
+        CREATE INDEX idx_posts_user_id ON posts(user_id);
+    `)
+
+    migration.AddDownSQL(`
+        DROP INDEX idx_users_email;
+        DROP INDEX idx_posts_user_id;
+    `)
+
+    return migration
+}
+```
+
+**详细文档：**
+- [Migration 完整指南](.dev-docs/MIGRATION_GUIDE.md) - 深入了解所有功能
+- [快速开始](.dev-docs/QUICK_START_MIGRATION.md) - 5分钟上手指南
+
 ## 🗄️ 支持的数据库
 
 | 数据库 | 适配器 | 状态 |
@@ -118,10 +245,14 @@ gormDB.Create(&User{Email: "test@example.com"})
 
 ## 📖 文档
 
+- [Migration 工具完整指南](.dev-docs/MIGRATION_GUIDE.md) - 数据库迁移工具使用说明
+- [Migration 快速开始](.dev-docs/QUICK_START_MIGRATION.md) - 5分钟上手迁移工具
+- [动态建表功能详解](.dev-docs/DYNAMIC_TABLE.md) - SaaS 多租户、分表分库等场景
 - [快速参考和常见问题](.dev-docs/QUICK_REFERENCE.md)
 - [v0.1.4 版本修复说明和完整使用指南](.dev-docs/FIXES_AND_TESTS.md)  
 - [版本发布说明](.dev-docs/SUMMARY.md)
-- [动态建表功能详解](DYNAMIC_TABLE.md) - SaaS 多租户、分表分库等场景
+- [v1.0.0 路线图](.dev-docs/v1.0.0_ROADMAP.md)
+- [v0.3.0 开发进度](.dev-docs/v0.3.0-PROGRESS.md)
 
 ## ❓ 常见问题
 
@@ -172,13 +303,20 @@ config := &eit_db.Config{
 运行所有测试：
 
 ```bash
-go test -v
+go test -v ./...
 ```
 
 运行特定测试：
 
 ```bash
+# Changeset 验证测试
+go test -v -run TestValidate
+
+# 适配器测试
 go test -v -run TestSQLiteAdapterInitialization
+
+# 动态表测试
+go test -v -run TestDynamicTable
 ```
 
 性能基准测试：
@@ -187,7 +325,23 @@ go test -v -run TestSQLiteAdapterInitialization
 go test -bench=BenchmarkGetGormDB -benchmem
 ```
 
-## 📊 v0.1.4 版本更新
+## 📊 版本更新
+
+### v0.5.0 - Migration 工具 (2026-02-03)
+
+✅ 全新的数据库迁移工具  
+✅ 支持 Schema-based 和 Raw SQL 两种迁移方式  
+✅ 命令行工具 eit-migrate  
+✅ 自动版本管理和状态追踪  
+✅ 支持跨数据库和非关系型数据库  
+
+### v0.3.1 - Changeset 增强 (2026-02-03)
+
+✅ 新增 7 个验证方法（Required, Length, Format, Inclusion, Exclusion, Number, GetChange）  
+✅ 完整的测试套件  
+✅ 修复 TestDynamicTableConfigBuilder 测试  
+
+### v0.1.4 - 稳定性修复 (2026-02-02)
 
 ✅ 修复 MySQL 驱动 GetGormDB() 返回 nil 问题  
 ✅ 修复 PostgreSQL 认证 "role does not exist" 问题  
@@ -214,72 +368,6 @@ MIT License
 
 ---
 
-**最后更新**：2026-02-02  
-**当前版本**：v0.1.4
-    for field, errors := range cs.Errors() {
-        fmt.Printf("%s: %v\n", field, errors)
-    }
-}
-```
-
-### 3. 查询构建器
-
-```go
-// 初始化适配器
-repo, _ := db.InitFromConfig("./config/database.yaml")
-
-// 构建查询
-qb := db.NewQueryBuilder(schema, repo)
-result := qb.Query("email = ?", "user@example.com")
-
-// 插入数据
-cs := db.NewChangeset(schema).Cast(data).Validate()
-qb.Insert(cs)
-
-// 更新数据
-updates := map[string]interface{}{"email": "new@example.com"}
-cs := db.NewChangeset(schema).Cast(updates)
-qb.Update(cs, "id = ?", userID)
-```
-
-### 4. 数据库迁移
-
-```go
-// 自动从 Schema 生成迁移
-schemas := []db.Schema{BuildUserSchema(), BuildPostSchema()}
-migrator := db.NewMigrator(repo)
-migrator.AutoMigrate(schemas)
-```
-
-## 架构
-
-EIT-DB 采用三层架构:
-
-1. **Schema 层**: 定义数据结构和验证规则
-2. **Changeset 层**: 管理数据变更和验证
-3. **Adapter 层**: 抽象不同数据库的操作
-
-这种设计使得你可以:
-- 在不同数据库间轻松切换
-- 在业务层使用统一的 API
-- 轻松添加自定义验证器
-- 保持代码的可测试性
-
-## 支持的数据库
-
-- MySQL 5.7+
-- PostgreSQL 10+
-- SQLite 3+
-
-## 文档
-
-详细文档请查看 [docs](./docs) 目录:
-
-- Schema 定义指南
-- Changeset 使用指南
-- 查询构建器 API
-- 自定义适配器开发
-
-## License
-
-MIT License
+**最后更新**：2026-02-03  
+**当前版本**：v0.5.0  
+**下一版本**：v1.0.0 (计划 2026-05)
