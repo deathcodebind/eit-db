@@ -8,7 +8,7 @@
 - **Changeset 验证** - 数据变更追踪和验证，类似 Ecto.Changeset，支持丰富的验证规则
 - **Query Constructor** - 三层查询构造架构，支持 MySQL/PostgreSQL/SQLite 方言 (v0.4.1+)
 - **Migration 工具** - 灵活的数据库迁移工具，支持 Schema-based 和 Raw SQL 两种方式
-- **跨数据库适配器** - 支持 MySQL, PostgreSQL, SQLite
+- **跨数据库适配器** - 支持 MySQL, PostgreSQL, SQLite, SQL Server
 - **查询构建器** - 类型安全的查询接口
 - **GORM 集成** - 完全兼容 GORM v1/v2，可无缝协作
 - **动态建表** - 支持运行时动态创建表，PostgreSQL 用触发器，MySQL/SQLite 用 GORM Hook
@@ -328,6 +328,33 @@ go test -bench=BenchmarkGetGormDB -benchmem
 
 ## 📊 版本更新
 
+### v0.4.2 - SQL Server Adapter (2026-02-03)
+
+**核心新增**：SQL Server 数据库支持，验证三层查询构造架构的扩展性
+
+**SQLServerDialect 实现**
+- ✅ 方括号标识符引用：`[table].[column]` 而非反引号或双引号
+- ✅ @pN 参数占位符：`@p1`, `@p2` 而非 `?` 或 `$1`
+- ✅ SQL Server 专属分页语法：`OFFSET n ROWS FETCH NEXT m ROWS ONLY`
+- ✅ 完整的三层架构兼容性验证
+
+**SQLServerAdapter 实现**
+- ✅ 基于 github.com/microsoft/go-mssqldb 和 gorm.io/driver/sqlserver
+- ✅ 默认端口 1433，支持连接池配置
+- ✅ 完整的事务支持（Commit/Rollback/Exec/Query/QueryRow）
+- ✅ GetQueryBuilderProvider() 返回 SQL Server 方言提供者
+
+**测试覆盖**
+- ✅ TestSQLServerDialect：5个测试用例验证 SQL 生成
+- ✅ TestSQLServerIdentifierQuoting：方括号引用验证
+- ✅ TestSQLServerComplexQuery：复杂查询验证
+- ✅ TestSQLServerDialectQuotingComparison：跨方言对比测试
+- ✅ 所有现有测试继续通过，100% 向后兼容
+
+**架构验证**：SQL Server 的独特语法完美融入三层架构，证明设计的可扩展性
+
+---
+
 ### v0.4.1 - 查询构造器三层架构 (2026-02-03)
 
 **核心改进**：建立查询构造器的三层分离架构，为 v0.5.0+ 多 Adapter 支持打基础
@@ -393,5 +420,5 @@ MIT License
 ---
 
 **最后更新**：2026-02-03  
-**当前版本**：v0.4.1  
-**下一版本**：v0.4.2 (关系查询支持)
+**当前版本**：v0.4.2  
+**下一版本**：v0.4.3 (关系查询支持)
