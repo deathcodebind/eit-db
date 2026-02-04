@@ -4,14 +4,15 @@
 
 ## ✨ 特性
 
-- **Schema 系统** - 声明式数据结构定义，支持验证器和默认值
+- **Schema 系统** - 声明式数据结构定义，支持验证器和默认值（支持从 Go 结构体自动生成）
 - **Changeset 验证** - 数据变更追踪和验证，类似 Ecto.Changeset，支持丰富的验证规则
 - **Query Constructor** - 三层查询构造架构，支持 MySQL/PostgreSQL/SQLite 方言 (v0.4.1+)
 - **Migration 工具** - 灵活的数据库迁移工具，支持 Schema-based 和 Raw SQL 两种方式
 - **跨数据库适配器** - 支持 MySQL, PostgreSQL, SQLite, SQL Server
 - **查询构建器** - 类型安全的查询接口
-- **GORM 集成** - 完全兼容 GORM v1/v2，可无缝协作
-- **动态建表** - 支持运行时动态创建表，PostgreSQL 用触发器，MySQL/SQLite 用 GORM Hook
+- **特性声明与派发** - Adapter 通过特性表声明能力，运行时按能力路由或降级
+- **无 GORM 暴露** - 对外不再暴露 GORM（内部降级可能复用 GORM，但不会暴露给用户）
+- **动态建表** - 支持运行时动态创建表，PostgreSQL 用触发器，MySQL/SQLite 使用内部实现
 - **定时任务** - 跨数据库的定时任务支持
 
 ## 📦 安装
@@ -21,6 +22,13 @@ go get github.com/eit-cms/eit-db
 ```
 
 ## 🚀 快速开始
+
+## 🧩 架构概览
+
+- **Adapter 特性表**：每个数据库适配器通过 `DatabaseFeatures` / `QueryFeatures` 声明原生能力。
+- **功能派发与降级**：按特性选择最佳实现，不支持的能力可降级到应用层策略。
+- **Repository 统一入口**：所有读写通过 Repository，避免直接暴露底层 ORM。
+- **Schema ⇄ Go 类型**：既支持手动 Schema，也支持从 Go 结构体反射生成。
 
 ### 1. 配置数据库连接
 
@@ -99,12 +107,11 @@ func main() {
     }
     defer repo.Close()
     
-    // 现在可以使用 GORM
-    gormDB := repo.GetGormDB()
+    // 现在可以使用 Repository API
 }
 ```
 
-### 2. 定义 Schema
+### 2. 定义 Schema（手动）
 
 ```go
 func BuildUserSchema() db.Schema {
@@ -132,22 +139,19 @@ func BuildUserSchema() db.Schema {
 }
 ```
 
-### 3. 使用 GORM ORM
+### 3. 定义 Schema（从 Go 结构体生成）
 
 ```go
 type User struct {
-    ID    uint
-    Email string
+    ID        int       `db:"id,primary_key,auto_increment"`
+    Email     string    `db:"email,unique,not_null"`
+    CreatedAt time.Time `db:"created_at"`
 }
 
-repo, _ := eit_db.InitDB("config.yaml")
-gormDB := repo.GetGormDB()
-
-// 使用 GORM 的所有功能
-var users []User
-gormDB.Find(&users)
-
-gormDB.Create(&User{Email: "test@example.com"})
+schema, err := db.InferSchema(User{})
+if err != nil {
+    panic(err)
+}
 ```
 
 ### 4. 使用 Changeset 进行数据验证 (v0.3.1+)
@@ -286,6 +290,7 @@ func NewMigration_20260203160000_AddIndexes() db.MigrationInterface {
 
 ## 📖 文档
 
+- [架构总览](docs/ARCHITECTURE.md) - 当前架构与路线图目标对齐说明
 - [Migration 工具完整指南](.dev-docs/MIGRATION_GUIDE.md) - 数据库迁移工具使用说明
 - [Migration 快速开始](.dev-docs/QUICK_START_MIGRATION.md) - 5分钟上手迁移工具
 - [动态建表功能详解](.dev-docs/DYNAMIC_TABLE.md) - SaaS 多租户、分表分库等场景
@@ -296,19 +301,6 @@ func NewMigration_20260203160000_AddIndexes() db.MigrationInterface {
 - [v0.3.0 开发进度](.dev-docs/v0.3.0-PROGRESS.md)
 
 ## ❓ 常见问题
-
-### GetGormDB() 返回 nil
-
-确保 Repository 已成功初始化。如果创建时返回错误，GetGormDB() 会返回 nil。
-
-```go
-repo, err := eit_db.NewRepository(config)
-if err != nil {
-    log.Fatal(err)
-}
-
-gormDB := repo.GetGormDB() // 现在返回有效实例
-```
 
 ### PostgreSQL 连接失败
 
@@ -363,7 +355,7 @@ go test -v -run TestDynamicTable
 性能基准测试：
 
 ```bash
-go test -bench=BenchmarkGetGormDB -benchmem
+go test -bench=. -benchmem
 ```
 
 ## 📊 版本更新
@@ -434,7 +426,7 @@ go test -bench=BenchmarkGetGormDB -benchmem
 
 ### v0.1.4 - 稳定性修复 (2026-02-02)
 
-✅ 修复 MySQL 驱动 GetGormDB() 返回 nil 问题  
+✅ 修复 MySQL 驱动连接与初始化问题  
 ✅ 修复 PostgreSQL 认证 "role does not exist" 问题  
 ✅ 改进连接池配置，完整支持 MaxLifetime  
 ✅ 增强错误诊断信息，包含完整的连接参数  
@@ -445,7 +437,6 @@ go test -bench=BenchmarkGetGormDB -benchmem
 
 ## 🔗 相关链接
 
-- [GORM 文档](https://gorm.io)
 - [Elixir Ecto 文档](https://hexdocs.pm/ecto)
 - [GitHub Repository](https://github.com/deathcodebind/eit-db)
 - [适配器工作流文档](./.dev-docs/ADAPTER_WORKFLOW.md)
@@ -516,5 +507,5 @@ MIT License
 ---
 
 **最后更新**：2026-02-04  
-**当前版本**：v0.4.2  
+**当前版本**：v0.4.3（稳定） / v0.4.4-preview（预览）  
 **下一版本**：v0.5.0 (多适配器+集成测试完成)
